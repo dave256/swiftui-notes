@@ -189,8 +189,14 @@ class RetryPublisherTests: XCTestCase {
                     }
                 }
             }
-        }.eraseToAnyPublisher()
+        }
+        .print("upstream publisher")
+        .eraseToAnyPublisher()
 
+        // this test is an idea proposed by anachev (ref: https://github.com/heckj/swiftui-notes/issues/164)
+        // on how to enable a "delay on error only". I have an example of using retry() with a random delay
+        // elsewhere in the book (https://heckj.github.io/swiftui-notes/#patterns-retry), but it *always*
+        // delays the call - which isn't an ideal solution.
         let resultPublisher = upstreamPublisher.catch { error -> AnyPublisher<String, Error> in
             print(msTimeFormatter.string(from: Date()) + "delaying on error for ~3 seconds ")
             return Publishers.Delay(upstream: upstreamPublisher,
@@ -205,6 +211,9 @@ class RetryPublisherTests: XCTestCase {
         let cancellable = resultPublisher.sink(receiveCompletion: { err in
             print(msTimeFormatter.string(from: Date()) + ".sink() received the completion: ", String(describing: err))
 
+            // The surprise here is that the underlying asynchronous API call is made not 3 times, but 6 times.
+            // From the output in the test, which includes timestamps down to the ms to make it easier to see WHEN
+            // things are happening, the retry process ends up double-invoking the upstream publisher.
             XCTAssertEqual(asyncAPICallCount, 6)
             XCTAssertEqual(futureClosureHandlerCount, 6);
             expectation.fulfill()
